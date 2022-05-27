@@ -1,9 +1,10 @@
-from onredis import onredis, IntField
-from redis_storage import get_redis_client
+from onredis import onredis, set_redis_client, get_redis_client
+from onredis.fields import IntField
 import cProfile
-from typing import Optional, Dict
+from typing import Optional, Dict, Union
 
 import redis.exceptions
+
 
 @onredis  # <-- storage on Redis declared here
 class DataStructClass:
@@ -11,7 +12,8 @@ class DataStructClass:
     b: str = "bb"
     c: bool = False
     d: int = IntField(5, size=1, signed=False)  # <-- custom encoding. By defaut size=4 bytes, signed=True
-    f: Dict[str, int]  # <-- f is going to be a hash store in Redis
+    f: Dict[str, int] = {} # <-- the f key is going to be a hash store in Redis
+    g: Optional[float]
 
     def test(self):
         # this is a normal class, so we can add a method
@@ -20,26 +22,27 @@ class DataStructClass:
         return self.a + self.c
 
 
-DataStruct = DataStructClass()
-DataStruct.f = {
-    'b': 5,
-    'd': 4,
-}
-print(DataStruct.f)
+set_redis_client(redis.Redis(unix_socket_path='./redis/docker/redis.sock'))
 
-DataStruct.f['a'] = 8
-print(DataStruct.f)
+
+DataStruct = DataStructClass()  # <-- this is where the Redis client is required, NOTE: this is a singleton
+
+print(DataStruct.test())
+
+DataStruct.g = 3.1415927
+print(DataStruct.g)
+
+DataStruct.g = None
 
 print(DataStruct) # <-- @onredis has defined the __repr__ method
 
-# import sys
-# sys.exit(1)
+DataStruct.g = 13.37
 
 def test():
     # the function is nearly 3 times faster with local_copy=True 
     # False: each access makes a Redis access
     # True: a local copy is done when the lock is acquired, then all the data are written when the lock is released
-    with DataStruct.lock(local_copy=False):  # <-- the lock method is defined by @onredis
+    with DataStruct.lock(local_copy=True):  # <-- the lock method is defined by @onredis
         # do some random stuff
         DataStruct.a += 1
         if DataStruct.a % 2 == 0:
@@ -51,11 +54,15 @@ def test():
         DataStruct.f[DataStruct.b] = DataStruct.f['a'] * 2
         DataStruct.d = (DataStruct.d | DataStruct.a) & 255
 
+
 print('before', DataStruct)
 
 test()
 
 print('after1', DataStruct)
+
+import sys
+sys.exit(1)
 
 test()
 
