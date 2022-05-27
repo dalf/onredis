@@ -20,13 +20,17 @@ class AbstractField(ABC):
 
     def __get__(self, obj, objtype=None):
         if obj._local_copy:
+            # there is a transaction: store the data in a buffer
             return obj._local_copy.get(self.key, self.default_value)
+        # no transaction: store in Redis
         return self.redis_get(obj, objtype)
 
     def __set__(self, obj, value):
         if obj._local_copy:
+            # there is a transaction: store the data in a buffer
             obj._local_copy[self.key] = value
             return
+        # no transaction: store in Redis
         return self.redis_set(obj, value)
 
     def redis_get(self, obj, objtype=None):
@@ -38,7 +42,7 @@ class AbstractField(ABC):
     def redis_set(self, obj, value):
         if value is None:
             get_redis_client().delete(self.key)
-            return    
+            return
         raw = self.serialize(value)
         get_redis_client().set(self.key, raw)
 
@@ -98,8 +102,11 @@ class IntField(AbstractField):
 
 
 class StrField(AbstractField):
-    deserialize = staticmethod(bytes.decode)
-    serialize = staticmethod(str.encode)
+    def deserialize(self, raw):
+        return bytes.decode(raw)
+
+    def serialize(self, value):
+        return value.encode()
 
 
 class FloatField(AbstractField):

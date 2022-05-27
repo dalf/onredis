@@ -2,8 +2,9 @@ import redis
 import redis.lock
 from types import FunctionType
 
+from onredis.transaction import OnRedisTransaction
+
 from .client import get_redis_client, set_redis_client
-from .lock import OnRedisLock
 from .fields import get_field
 
 
@@ -73,13 +74,14 @@ def _process_class(cls):
         values_str = ", ".join(values)
         return f"<{cls.__name__} {values_str}>"
 
-    def cls_lock(self, local_copy=False) -> OnRedisLock:
-        lock = getattr(self, "_lock_value", None)
-        if lock is None:
+    def cls_lock(self) -> redis.lock.Lock:
+        if not hasattr(self, "_lock"):
             redis_client = get_redis_client()
-            lock = redis.lock.Lock(redis_client, redis_lock_name)
-            self._lock_value = lock
-        return OnRedisLock(self, cls, lock, local_copy)
+            self._lock = redis.lock.Lock(redis_client, redis_lock_name)
+        return self._lock
+
+    def cls_transaction(self) -> OnRedisTransaction:
+        return OnRedisTransaction(self, cls)
 
     def cls__new__(ncls):
         # check if there are existing values in Redis with a previous definition of the class
@@ -92,6 +94,7 @@ def _process_class(cls):
     _set_new_attribute(cls, "_local_copy", False)
     _set_new_attribute(cls, "__repr__", cls__repr__)
     _set_new_attribute(cls, "lock", cls_lock)
+    _set_new_attribute(cls, "transaction", cls_transaction)
     _set_new_attribute(cls, "__new__", cls__new__)
 
     # define __slots__

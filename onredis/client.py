@@ -1,6 +1,10 @@
+import threading
 import redis
+from typing import Dict, Optional
 
-REDIS_CLIENT: redis.Redis = None
+
+REDIS_CLIENT: Optional[redis.Redis] = None
+LOCAL: Dict[int, redis.Redis] = {}
 
 
 def set_redis_client(redis_client):
@@ -9,4 +13,11 @@ def set_redis_client(redis_client):
 
 
 def get_redis_client() -> redis.Redis:
-    return REDIS_CLIENT
+    return LOCAL.get(threading.get_ident(), REDIS_CLIENT)
+
+
+def set_redis_client_for_thread(client: redis.Redis):
+    if client:
+        LOCAL[threading.get_ident()] = client
+    else:
+        del LOCAL[threading.get_ident()]

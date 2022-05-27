@@ -3,7 +3,6 @@ from .basic import AbstractField, GenericField
 
 
 class DictionaryField(AbstractField):
-
     def __init__(self, key_field=None, value_field=None, default_value=None):
         self.key_field = key_field or GenericField(None)
         self.value_field = value_field or GenericField(None)
@@ -52,7 +51,9 @@ class DictionnaryProxy:
 
     def _no_local_copy(self):
         if self.obj._local_copy:
-            raise ValueError('A lock was acquired after this class was created')
+            raise ValueError(
+                f"The DictionnaryProxy for {self.key!r} was acquired before a transaction starts on {self.obj!r}"
+            )
 
     def __getitem__(self, key):
         self._no_local_copy()

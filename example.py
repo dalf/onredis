@@ -1,7 +1,8 @@
 from onredis import onredis, set_redis_client, get_redis_client
 from onredis.fields import IntField
+import threading
 import cProfile
-from typing import Optional, Dict, Union
+from typing import Optional, Dict
 
 import redis.exceptions
 
@@ -10,7 +11,7 @@ import redis.exceptions
 class DataStructClass:
     a: int = 5
     b: str = "bb"
-    c: bool = False
+    c: Optional[bool] = False
     d: int = IntField(5, size=1, signed=False)  # <-- custom encoding. By defaut size=4 bytes, signed=True
     f: Dict[str, int] = {} # <-- the f key is going to be a hash store in Redis
     g: Optional[float]
@@ -25,7 +26,8 @@ class DataStructClass:
 set_redis_client(redis.Redis(unix_socket_path='./redis/docker/redis.sock'))
 
 
-DataStruct = DataStructClass()  # <-- this is where the Redis client is required, NOTE: this is a singleton
+# this is a singleton, another instance is going to be the same object
+DataStruct = DataStructClass()  # <-- this is where the Redis client is required
 
 print(DataStruct.test())
 
@@ -39,10 +41,7 @@ print(DataStruct) # <-- @onredis has defined the __repr__ method
 DataStruct.g = 13.37
 
 def test():
-    # the function is nearly 3 times faster with local_copy=True 
-    # False: each access makes a Redis access
-    # True: a local copy is done when the lock is acquired, then all the data are written when the lock is released
-    with DataStruct.lock(local_copy=True):  # <-- the lock method is defined by @onredis
+    with DataStruct.transaction():
         # do some random stuff
         DataStruct.a += 1
         if DataStruct.a % 2 == 0:
@@ -55,14 +54,36 @@ def test():
         DataStruct.d = (DataStruct.d | DataStruct.a) & 255
 
 
+def loop():
+    ok = 0
+    conflict = 0
+    for i in range(1, 10):
+        try:
+            test()
+            ok += 1
+        except redis.exceptions.WatchError:
+            conflict += 1
+    print('ok', ok, 'conflict', conflict)
+
+
+def multithread():
+    t_list = []
+    for _ in range(1, 10):
+        t = threading.Thread(target=loop)
+        t.setDaemon(True)
+        t.start()
+        t_list.append(t)
+    for t in t_list:
+        t.join()
+
+
+# multithread()
+
 print('before', DataStruct)
 
 test()
 
 print('after1', DataStruct)
-
-import sys
-sys.exit(1)
 
 test()
 
@@ -76,7 +97,7 @@ print('after3', DataStruct)
 
 DataStruct.a = 4242  # <-- no need for a lock to modify the data, MyStruct.a += 1 is not going to work as expected without lock. 
 
-profile_file_name = 'example.prof'
+profile_file_name = False # 'example.prof'
 
 if profile_file_name:
     pr = cProfile.Profile()
@@ -84,7 +105,7 @@ if profile_file_name:
 
 import timeit
 # 2 seconds on my laptop for 1000 iterations
-print(timeit.timeit('test()', globals=globals(), number=3000))
+print(timeit.timeit('test()', globals=globals(), number=10000))
 
 if profile_file_name:
     pr.disable()
