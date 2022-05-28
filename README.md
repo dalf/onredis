@@ -1,6 +1,10 @@
 # OnRedis
 
-Store object on Redis.
+Store objects on Redis, OnRedis takes care about the (de)serialization.
+
+A experiment with [Python descriptors](https://docs.python.org/3.10/howto/descriptor.html#descriptor-howto-guide)
+
+Example (TODO : find a more revealing example)
 
 ```python
 from typing import Dict
@@ -12,8 +16,8 @@ import redis
 class Scores:
     total: float = 0
     count: int = 0
-    total_per_type: Dict[str, float] = {} # <-- the f key is going to be a hash store in Redis
-    count_per_type: Dict[str, float] = {} # <-- the f key is going to be a hash store in Redis
+    total_per_type: Dict[str, float] = {} # <-- this is field is going to be a hash store in Redis
+    count_per_type: Dict[str, float] = {}
 
     def global_avg(self):
         return self.total / self.count
