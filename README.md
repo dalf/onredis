@@ -2,9 +2,14 @@
 
 Store objects on Redis, OnRedis takes care about the (de)serialization.
 
-A experiment with [Python descriptors](https://docs.python.org/3.10/howto/descriptor.html#descriptor-howto-guide)
+This is an experiment with the [Python descriptors](https://docs.python.org/3.10/howto/descriptor.html#descriptor-howto-guide)
+
+For a ready to use Object mapping for Redis, see https://github.com/redis/redis-om-python 
+
+---
 
 Example (TODO : find a more revealing example)
+
 
 ```python
 from typing import Dict
